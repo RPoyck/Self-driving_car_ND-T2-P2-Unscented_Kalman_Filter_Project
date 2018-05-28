@@ -1,5 +1,4 @@
 #include "ukf.h"
-#include "Eigen/Dense"
 #include <iostream>
 
 using namespace std;
@@ -8,7 +7,7 @@ using Eigen::VectorXd;
 using std::vector;
 
 /**
- * Initializes Unscented Kalman filter
+ * Initialises Unscented Kalman filter
  * This is scaffolding, do not modify
  */
 UKF::UKF() {
@@ -50,9 +49,9 @@ UKF::UKF() {
   /**
   TODO:
 
-  Complete the initialization. See ukf.h for other member properties.
+  Complete the initialisation. See ukf.h for other member properties.
 
-  Hint: one or more values initialized above might be wildly off...
+  Hint: one or more values initialised above might be wildly off...
   */
   
   // Set state dimension //
@@ -106,12 +105,64 @@ void UKF::GenerateSigmaPoints(MatrixXd* Xsig_out) {
     // Set first column of sigma point matrix //
     Xsig_aug.col(0)  = x_aug;
     // Set remaining sigma points //
-    for (int i = 0; i < n_aug; i++)
+    for (int i = 0; i < this->n_aug_; i++)
     {
 	Xsig_aug.col(i+1)     = x_aug + sqrt(this->lambda_ + this->n_aug_) * A_aug.col(i);
 	Xsig_aug.col(i+1+this->n_aug_) = x_aug - sqrt(this->lambda_ + this->n_aug_) * A_aug.col(i);
     }
 
+}
+
+
+void UKF::SigmaPointPrediction(MatrixXd* Xsig_out, double delta_t, MatrixXd Xsig_aug) {
+    
+    // Create matrix with predicted sigma points as columns //
+    MatrixXd Xsig_pred = MatrixXd(this->n_x_, 2 * this->n_aug_ + 1);
+    
+    // Predict sigma points //
+    for (int i = 0; i < 2*this->n_aug_+1; i++)
+    {
+	// Extract values for better readability //
+	double p_x = Xsig_aug(0,i);
+	double p_y = Xsig_aug(1,i);
+	double v = Xsig_aug(2,i);
+	double yaw = Xsig_aug(3,i);
+	double yawd = Xsig_aug(4,i);
+	double nu_a = Xsig_aug(5,i);
+	double nu_yawdd = Xsig_aug(6,i);
+	
+	//predicted state values
+	double px_p, py_p;
+	
+	// Avoid division by zero //
+	if (fabs(yawd) > 0.001) {
+	    px_p = p_x + v/yawd * ( sin (yaw + yawd*delta_t) - sin(yaw) );
+	    py_p = p_y + v/yawd * ( cos(yaw) - cos(yaw+yawd*delta_t) );
+	}
+	else {
+	    px_p = p_x + v*delta_t*cos(yaw);
+	    py_p = p_y + v*delta_t*sin(yaw);
+	}
+	
+	double v_p = v;
+	double yaw_p = yaw + yawd*delta_t;
+	double yawd_p = yawd;
+
+	//add noise effect //
+	px_p += 0.5 * nu_a * delta_t*delta_t * cos(yaw);
+	py_p += 0.5 * nu_a * delta_t*delta_t * sin(yaw);
+	v_p += nu_a * delta_t;
+	
+	yaw_p += 0.5 * nu_yawdd * delta_t*delta_t;
+	yawd_p += nu_yawdd * delta_t;
+	
+	// Write predicted sigma point into the column of this sigma point number //
+	Xsig_pred(0,i) = px_p;
+	Xsig_pred(1,i) = py_p;
+	Xsig_pred(2,i) = v_p;
+	Xsig_pred(3,i) = yaw_p;
+	Xsig_pred(4,i) = yawd_p;
+    }
 }
     
 
