@@ -63,11 +63,21 @@ public:
 
   ///* Augmented state dimension
   int n_aug_;
+  
+  // Measurement dimension //
+  int n_z_;
 
   ///* Sigma point spreading parameter
   double lambda_;
+  
+  ///* Sigma points 
+  MatrixXd Xsig_aug_;
 
-
+  double delta_t_;
+    
+  double last_timestamp_;  
+  measurement_pack previous_timestamp_;
+  
   /**
    * Constructor
    */
@@ -85,6 +95,14 @@ public:
   void ProcessMeasurement(MeasurementPackage meas_package);
 
   void GenerateSigmaPoints(MatrixXd* Xsig_out);
+  
+  void SigmaPointPrediction(MatrixXd* Xsig_out, double delta_t, MatrixXd Xsig_aug);
+  
+  void PredictMeanAndCovariance(VectorXd* x_out, MatrixXd* P_out, MatrixXd Xsig_pred);
+  
+  void PredictRadarMeasurement(VectorXd* z_out, MatrixXd* S_out, MatrixXd Xsig_pred);
+  
+  void SetWeights();
   
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
