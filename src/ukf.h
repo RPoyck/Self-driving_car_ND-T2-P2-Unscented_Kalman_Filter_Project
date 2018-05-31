@@ -72,11 +72,23 @@ public:
   
   ///* Sigma points 
   MatrixXd Xsig_aug_;
-
+  
+  // Matrix for sigma points in measurement space //
+  MatrixXd Zsig_;
+  
+  // Mean predicted measurement //
+  VectorXd z_pred_;
+  
+  // Measurement covariance matrix //
+  MatrixXd S_;
+  VectorXd z_;
+  // Measurement //
+  
+  
   double delta_t_;
     
   double last_timestamp_;  
-  measurement_pack previous_timestamp_;
+  long previous_timestamp_;
   
   /**
    * Constructor
@@ -94,13 +106,13 @@ public:
    */
   void ProcessMeasurement(MeasurementPackage meas_package);
 
-  void GenerateSigmaPoints(MatrixXd* Xsig_out);
+  void GenerateSigmaPoints();
   
-  void SigmaPointPrediction(MatrixXd* Xsig_out, double delta_t, MatrixXd Xsig_aug);
+  void SigmaPointPrediction();
   
-  void PredictMeanAndCovariance(VectorXd* x_out, MatrixXd* P_out, MatrixXd Xsig_pred);
+  void PredictMeanAndCovariance();
   
-  void PredictRadarMeasurement(VectorXd* z_out, MatrixXd* S_out, MatrixXd Xsig_pred);
+  void PredictMeasurement(MeasurementPackage::SensorType sensor_type);
   
   void SetWeights();
   
@@ -121,7 +133,8 @@ public:
    * Updates the state and the state covariance matrix using a radar measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateRadar(MeasurementPackage meas_package);
+//   void UpdateRadar(MeasurementPackage meas_package);
+  void Update(MeasurementPackage meas_package);
 };
 
 #endif /* UKF_H */
