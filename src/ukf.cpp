@@ -61,7 +61,8 @@ UKF::UKF() {
   // Set augmented dimension //
   this->n_aug_ = 7;
   // Define spreading parameter //
-  this->lambda_ = 3 - this->n_aug_;
+//   this->lambda_ = 3 - this->n_aug_;
+  this->lambda_ = 3 - this->n_x_;
   
   SetWeights();
   
@@ -89,7 +90,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     if (!is_initialized_) {
 	// first measurement initialisation //
 	cout << "UKF: " << endl;
-	this->x_ = VectorXd(4);
+	this->x_ = VectorXd(5);
 
 	if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
 	    /**
@@ -103,6 +104,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 	    this->x_(1) = rho * sin(phi); 
 	    this->x_(2) = rhoDot * cos(phi); 
 	    this->x_(3) = rhoDot * sin(phi); 
+	    this->x_(4) = 0.0;
 	} 
 	else { 
 	    if (meas_package.sensor_type_ == MeasurementPackage::LASER) { 
@@ -110,7 +112,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 		Initialise state. 
 		*/ 
 		//set the state with the initial location and zero velocity 
-		this->x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0; 
+		this->x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0.0, 0.0, 0.0; 
 	    } 
 	} 
  
@@ -121,34 +123,60 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 	return; 
     }
     
+//     if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {return;}
+    
+    cout << "GenerateSigmaPoints: " << endl;
     GenerateSigmaPoints();
     
     this->delta_t_ = (meas_package.timestamp_ - this->last_timestamp_) / 1000000.0;
     this->last_timestamp_ = meas_package.timestamp_;
     
+    cout << "SigmaPointPrediction: " << endl;
     SigmaPointPrediction();
     
     if (meas_package.sensor_type_ == MeasurementPackage::RADAR) 
     {
 	// Measurement dimension, radar can measure r, phi, and r_dot //
 	this->n_z_ = 3;
-	this->z_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], meas_package.raw_measurements_[2];
+	cout << "set z rad: " << endl;
+	cout << "1: " << meas_package.raw_measurements_[0] << endl;
+	cout << "2: " << meas_package.raw_measurements_[1] << endl;
+	cout << "3: " << meas_package.raw_measurements_[2] << endl;
+	this->z_ = VectorXd(3);
+	z_(0) = meas_package.raw_measurements_[0];
+	z_(1) = meas_package.raw_measurements_[1];
+	z_(2) = meas_package.raw_measurements_[2];
+// 	this->z_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], meas_package.raw_measurements_[2];
+	cout << "z set: " << endl;
     }
     else 
     { 
 	if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
 	    this->n_z_ = 2;
-	    this->z_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1];
+	    cout << "set z lid: " << endl;
+	    this->z_ = VectorXd(2);
+	    z_(0) = meas_package.raw_measurements_[0];
+	    z_(1) = meas_package.raw_measurements_[1];
+// 	    this->z_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1];
+	    cout << "s set: " << endl;
 	}
     }
     
+    cout << "PredictMeanAndCovariance: " << endl;
+    PredictMeanAndCovariance();
+    
+    cout << "PredictMeasurement: " << endl;
     PredictMeasurement(meas_package.sensor_type_);
+    
+    cout << "Update: " << endl;
+    Update(meas_package);
     
 }
 
 
 void UKF::GenerateSigmaPoints() {
     
+    cout << "Part 1: " << endl;
     // Create augmented mean vector //
     VectorXd x_aug = VectorXd(this->n_aug_);
     // Create augmented state covariance matrix //
@@ -157,27 +185,34 @@ void UKF::GenerateSigmaPoints() {
     // Create sigma point matrix //
     MatrixXd Xsig_aug = MatrixXd(this->n_aug_, 2 * this->n_aug_ + 1);
     
+    cout << "Part 2: " << endl;
+    cout << this->x_ << endl;
     // Create augmented mean state //
     x_aug.head(5) = this->x_;
     x_aug(5) = 0;
     x_aug(6) = 0;
     
+    cout << "Part 3: " << endl;
     // Create augmented covariance matrix //
     P_aug.topLeftCorner(this->n_x_, this->n_x_) = this->P_;
     P_aug(5,5) = this->std_a_ * this->std_a_;
     P_aug(6,6) = this->std_yawdd_ * this->std_yawdd_;
     
+    cout << "Part 4: " << endl;
     //calculate square root of P_aug //
     MatrixXd A_aug = P_aug.llt().matrixL();
     
+    cout << "Part 5: " << endl;
     // Set first column of sigma point matrix //
     Xsig_aug.col(0)  = x_aug;
     // Set remaining sigma points //
-    for (int i = 0; i < this->n_aug_; i++)
+    for (int i = 0; i < (this->n_aug_); i++)
     {
 	Xsig_aug.col(i+1)     = x_aug + sqrt(this->lambda_ + this->n_aug_) * A_aug.col(i);
 	Xsig_aug.col(i+1+this->n_aug_) = x_aug - sqrt(this->lambda_ + this->n_aug_) * A_aug.col(i);
     }
+    
+    cout << "Part 6: " << endl;
     
     this->Xsig_aug_ = Xsig_aug;
     
@@ -189,9 +224,12 @@ void UKF::SigmaPointPrediction() {
     // Create matrix with predicted sigma points as columns //
     MatrixXd Xsig_pred = MatrixXd(this->n_x_, 2 * this->n_aug_ + 1);
     
+    cout << "Part 1: " << endl;
     // Predict sigma points //
     for (int i = 0; i < 2*this->n_aug_+1; i++)
     {
+	cout << "size" << Xsig_aug_.size() << endl;
+	cout << i << endl;
 	// Extract values for better readability //
 	double p_x = this->Xsig_aug_(0,i);
 	double p_y = this->Xsig_aug_(1,i);
@@ -201,6 +239,7 @@ void UKF::SigmaPointPrediction() {
 	double nu_a = this->Xsig_aug_(5,i);
 	double nu_yawdd = this->Xsig_aug_(6,i);
 	
+	cout << "Part 2: " << endl;
 	//predicted state values
 	double px_p, py_p;
 	
@@ -214,10 +253,12 @@ void UKF::SigmaPointPrediction() {
 	    py_p = p_y + v*this->delta_t_*sin(yaw);
 	}
 	
+	cout << "Part 3: " << endl;
 	double v_p = v;
 	double yaw_p = yaw + yawd*this->delta_t_;
 	double yawd_p = yawd;
-
+	
+	cout << "Part 4: " << endl;
 	//add noise effect //
 	px_p += 0.5 * nu_a * this->delta_t_*this->delta_t_ * cos(yaw);
 	py_p += 0.5 * nu_a * this->delta_t_*this->delta_t_ * sin(yaw);
@@ -226,6 +267,7 @@ void UKF::SigmaPointPrediction() {
 	yaw_p += 0.5 * nu_yawdd * this->delta_t_*this->delta_t_;
 	yawd_p += nu_yawdd * this->delta_t_;
 	
+	cout << "Part 5: " << endl;
 	// Write predicted sigma point into the column of this sigma point number //
 	Xsig_pred(0,i) = px_p;
 	Xsig_pred(1,i) = py_p;
@@ -234,6 +276,7 @@ void UKF::SigmaPointPrediction() {
 	Xsig_pred(4,i) = yawd_p;
     }
     
+    cout << "Part 6: " << endl;
     this->Xsig_pred_ = Xsig_pred;
     
 }
@@ -249,22 +292,29 @@ void UKF::PredictMeanAndCovariance() {
     MatrixXd P; // = MatrixXd(n_x, n_x);
     P.setZero(this->n_x_, this->n_x_);
     
+    cout << "Part 1: " << endl;
     // Predict state mean //
     for (int i = 0; i < 2 * this->n_aug_ + 1; i++) {  // iterate over sigma points
         x += this->weights_(i) * this->Xsig_pred_.col(i);
     }
-  
+    
+    cout << "Part 2: " << endl;
     // Predict state covariance matrix //
     for (int i = 0; i < 2 * this->n_aug_ + 1; i++) {  //iterate over sigma points
 
         // State difference //
         VectorXd x_diff = this->Xsig_pred_.col(i) - x;
+	cout << "x_diff: " << x_diff << endl;
+	cout << "this->Xsig_pred_.col(i): " << this->Xsig_pred_.col(i) << endl;
+	cout << "x: " << x << endl;
         // Angle formalisation //
+	cout << "x_diff(3): " << x_diff(3) << endl;
         while (x_diff(3)> M_PI) x_diff(3)-=2.*M_PI;
         while (x_diff(3)<-M_PI) x_diff(3)+=2.*M_PI;
     
         P += this->weights_(i) * x_diff * x_diff.transpose() ;
     }
+    cout << "Part 3: " << endl;
     
     this->x_ = x;
     this->P_ = P;
