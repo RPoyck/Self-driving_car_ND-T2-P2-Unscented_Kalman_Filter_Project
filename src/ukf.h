@@ -5,6 +5,8 @@
 #include "Eigen/Dense"
 #include <vector>
 #include <string>
+
+#include <iostream>
 #include <fstream>
 
 using Eigen::MatrixXd;
@@ -84,11 +86,12 @@ public:
   VectorXd z_;
   // Measurement //
   
-  
   double delta_t_;
     
   double last_timestamp_;  
   long previous_timestamp_;
+  
+  std::ofstream NIS_output_file_;
   
   /**
    * Constructor
@@ -113,6 +116,11 @@ public:
   void PredictMeanAndCovariance();
   
   void PredictMeasurement(MeasurementPackage::SensorType sensor_type);
+  
+    /**
+  * A helper method to calculate NIS.
+  */
+  double NIS(VectorXd z, VectorXd z_k, MatrixXd S_k);
   
   void SetWeights();
   
